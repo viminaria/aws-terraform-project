@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "terraform": {
+      "type": "local",
+      "command": ["/home/viminaria/go/bin/terraform-mcp-server"],
+      "enabled": true
+    }
+  }
+}

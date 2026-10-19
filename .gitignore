@@ -1,0 +1,13 @@
+*.tfstate
+*.tfstate.backup
+*.tfvars
+.terraform/
+.terraform.lock.hcl
+node-token.txt
+
+# AWS credentials (if stored locally)
+.aws-credentials
+
+# Floci staging state and data
+staging/tfstate/
+staging/data/
