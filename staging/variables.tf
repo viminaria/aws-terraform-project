@@ -91,7 +91,7 @@ variable "instance_type_nginx" {
 variable "cp_subdomain" {
   description = "Subdomain prefix for control plane DNS record"
   type        = string
-  default     = "cp"
+  default     = "aws-control"
 }
 
 variable "dns_zone" {
@@ -103,7 +103,7 @@ variable "dns_zone" {
 variable "worker_subdomain" {
   description = "Subdomain prefix for worker DNS record"
   type        = string
-  default     = "k8s"
+  default     = "aws-worker"
 }
 
 variable "cloudflare_api_token" {

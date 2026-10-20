@@ -4,7 +4,7 @@ data "aws_ami" "ubuntu" {
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-noble-24.04-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-arm64-server-*"]
   }
 
   filter {
@@ -14,7 +14,7 @@ data "aws_ami" "ubuntu" {
 
   filter {
     name   = "architecture"
-    values = ["x86_64"]
+    values = ["arm64"]
   }
 }
 
@@ -25,7 +25,7 @@ resource "aws_instance" "nginx" {
   subnet_id                   = var.subnet_ids.public
   vpc_security_group_ids      = [aws_security_group.nginx.id]
   iam_instance_profile        = var.iam_instance_profile
-  associate_public_ip_address = true
+  associate_public_ip_address = false
   key_name                    = aws_key_pair.k3s.key_name
 
   root_block_device {
@@ -44,6 +44,16 @@ resource "aws_instance" "nginx" {
   tags = {
     Name = "${var.project_name}-nginx"
     Role = "load-balancer"
+  }
+}
+
+# Elastic IP for NGINX — persists across stop/start/recreate
+resource "aws_eip" "nginx" {
+  domain   = "vpc"
+  instance = aws_instance.nginx.id
+
+  tags = {
+    Name = "${var.project_name}-nginx-eip"
   }
 }
 

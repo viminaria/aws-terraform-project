@@ -1,12 +1,9 @@
-#!/bin/bash
-set -euo pipefail
+#cloud-config
+bootcmd:
+  - fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
-# Add swap space (k3s worker is tight on memory)
-fallocate -l 1G /swapfile
-chmod 600 /swapfile
-mkswap /swapfile
-swapon /swapfile
-echo '/swapfile none swap sw 0 0' >> /etc/fstab
+ssh_authorized_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB+no+9tNGnJppqUmdUWMjhdDYjvexW6glfHoEOIGfFY viminaria@nixos
 
-# Install k3s agent (do not join yet — get token from control plane first)
-curl -sfL https://get.k3s.io | sh -s - agent
+runcmd:
+  - curl -sfL https://get.k3s.io | sh -s - agent

@@ -51,4 +51,6 @@ module "dns" {
   dns_zone         = var.dns_zone
   cp_subdomain     = var.cp_subdomain
   worker_subdomain = var.worker_subdomain
+  nginx_subdomain  = var.nginx_subdomain
+  nginx_public_ip  = module.compute.nginx_public_ip
 }

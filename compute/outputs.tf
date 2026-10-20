@@ -1,6 +1,6 @@
 output "nginx_public_ip" {
   description = "Public IP of NGINX load balancer"
-  value       = aws_instance.nginx.public_ip
+  value       = aws_eip.nginx.public_ip
 }
 
 output "nginx_dns" {

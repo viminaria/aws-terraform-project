@@ -59,6 +59,15 @@ resource "aws_security_group" "k3s_cp" {
   description = "Security group for k3s control plane node"
   vpc_id      = var.vpc_id
 
+  # SSH from NGINX security group
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.nginx.id]
+    description     = "SSH from NGINX jump host"
+  }
+
   # k3s API server — from nginx LB and same subnet
   ingress {
     from_port   = 6443
@@ -104,6 +113,15 @@ resource "aws_security_group" "k3s_worker" {
   name        = "${var.project_name}-k3s-worker"
   description = "Security group for k3s worker node"
   vpc_id      = var.vpc_id
+
+  # SSH from NGINX security group
+  ingress {
+    from_port       = 22
+    to_port         = 22
+    protocol        = "tcp"
+    security_groups = [aws_security_group.nginx.id]
+    description     = "SSH from NGINX jump host"
+  }
 
   # kubelet — from control plane and same subnet
   ingress {
