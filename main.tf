@@ -1,3 +1,8 @@
+# =============================================================================
+# AWS Infrastructure — networking, IAM, services, compute
+# Run: terraform apply (from project root)
+# =============================================================================
+
 module "networking" {
   source = "./networking"
 
@@ -49,45 +54,9 @@ module "compute" {
   iam_instance_profile       = module.iam.instance_profile_name
   nginx_iam_instance_profile = module.iam.nginx_instance_profile_name
 }
-module "dns" {
-  source = "./dns"
 
-  dns_zone         = var.dns_zone
-  cp_subdomain     = var.cp_subdomain
-  worker_subdomain = var.worker_subdomain
-  nginx_subdomain  = var.nginx_subdomain
-  nginx_public_ip  = module.compute.nginx_public_ip
-  ingress_records  = {}
-}
-
-# Kubernetes provider — shared by cert-manager and k8s resources in this root
-locals {
-  kubeconfig_path     = "~/.kube/k3s-cluster"
-  kubeconfig_filename = "${pathexpand("~")}/.kube/k3s-cluster"
-}
-
-resource "local_file" "kubeconfig" {
-  content              = var.kubeconfig_content
-  filename             = local.kubeconfig_filename
-  file_permission      = "0600"
-  directory_permission = "0700"
-}
-
-provider "kubernetes" {
-  config_path = local_file.kubeconfig.filename
-}
-
-# cert-manager — ACME certificate management with Cloudflare DNS-01 challenge
-module "cert_manager" {
-  source     = "./cert-manager"
-  depends_on = [module.compute]
-
-  dns_zone             = var.dns_zone
-  cloudflare_api_token = var.cloudflare_api_token
-  ingress_subdomains   = var.ingress_subdomains
-}
-
-# Kubernetes resources (go-api deployment/service/ingress) — uses kubeconfig
-# extracted via SSH, no public API endpoint needed. Provision separately:
-#   export KUBECONFIG_CONTENT="$(cat ~/.kube/k3s-cluster)"
-#   cd modules/kubernetes && terraform apply -var="kubeconfig_content=$KUBECONFIG_CONTENT"
+# =============================================================================
+# DNS + cert-manager — managed separately via app/ directory
+# Requires: cloudflare_api_token, dns_zone set, running k3s cluster (for cert_manager)
+# Run: cd app && terraform apply -var="dns_zone=..." -var="cloudflare_api_token=..."
+# =============================================================================

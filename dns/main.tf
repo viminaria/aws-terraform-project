@@ -2,6 +2,15 @@
 # All resources are conditional on dns_zone being set. When dns_zone is empty,
 # no cloudflare provider is needed and no resources are created.
 
+terraform {
+  required_providers {
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 4.0"
+    }
+  }
+}
+
 locals {
   dns_zone_empty = var.dns_zone == ""
 }

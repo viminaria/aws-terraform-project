@@ -13,6 +13,11 @@ locals {
   ingress_domains = toset([for k, v in var.ingress_subdomains : "${k}.${var.dns_zone}" if var.dns_zone != ""])
 }
 
+# Kubernetes provider for cert-manager resources
+provider "kubernetes" {
+  config_path = pathexpand(var.kubeconfig_path)
+}
+
 # =============================================================================
 # Install cert-manager CRDs + controller (one-time, idempotent)
 # =============================================================================
