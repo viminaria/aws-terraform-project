@@ -50,13 +50,13 @@ Either:
 - **Use an existing key** in `~/.ssh/` and reference it in a `.tfvars` file, or
 - **Generate one**: `ssh-keygen -t ed25519 -f ~/.ssh/k3s-cluster -N ""`
 
-## 5. Cloudflare account with a domain
+## 5. Cloudflare account with a domain (optional but recommended)
 
-You need:
+For automatic DNS record creation and Let's Encrypt certificate provisioning, you need:
 - A Cloudflare account (free tier is fine)
 - Your domain's nameservers pointed to Cloudflare, or at least the subdomains you'll use
 
-Get your API key: **My Profile → API Tokens → Global API Key** (or create a specific token with Edit DNS permission on your zone).
+Get your API token: **My Profile → API Tokens → Create Token** (use a custom token with "Edit DNS" permission on your zone — not the Global API Key).
 
 ## 6. Create terraform.tfvars
 
@@ -73,14 +73,19 @@ root_volume_size   = 20
 # SSH public key for all EC2 instances (replace with your actual key)
 ssh_public_key = "ssh-ed25519 AAAA..."
 
-# Cloudflare — set these if you want the dns/ module to create records automatically
-cloudflare_api_token = ""   # API Token or Global API Key (optional, leave empty for manual DNS)
-cloudflare_zone_id   = ""   # Zone ID from your Cloudflare dashboard (optional)
-cp_subdomain         = "cp"  # e.g. "cp" → cp.yourdomain.com
-worker_subdomain     = "k8s"  # e.g. "k8s" → k8s.yourdomain.com
+# Cloudflare — set these if you want automatic DNS + Let's Encrypt certificates
+dns_zone             = ""          # e.g. "viminaria.com"
+cloudflare_api_token = ""         # Custom API Token with Edit DNS permission (optional)
+cloudflare_zone_id   = ""         # Zone ID from your Cloudflare dashboard (optional)
+cp_subdomain         = "cp"       # e.g. "cp" → cp.viminaria.com
+worker_subdomain     = "k8s"      # e.g. "k8s" → k8s.viminaria.com
+nginx_subdomain      = "nginx"    # optional dedicated NGINX subdomain
+
+# Ingress subdomains for cert-manager (map of subdomain to app name)
+ingress_subdomains   = { go-api = "go-api" }  # creates go-api.viminaria.com cert
 ```
 
-Leave `cloudflare_api_token` and `cloudflare_zone_id` empty to skip automatic DNS management — you'll use Terraform outputs instead (see below).
+Leave `cloudflare_api_token`, `cloudflare_zone_id`, and `dns_zone` empty to skip automatic DNS management and Let's Encrypt certificates. The infrastructure still deploys — you'll use Terraform outputs for manual DNS instead, and NGINX will serve its self-signed certificate.
 
 ## 7. Verify AWS access
 
@@ -115,6 +120,25 @@ This script:
 1. SSHes through the NGINX bastion to fetch the k3s join token from the control plane
 2. SSHes through NGINX to the worker node and runs the `k3s agent --server ... --token ...` command
 3. Verifies the cluster has both nodes
+
+## Applying Kubernetes resources
+
+After joining the worker, apply the Go API K8s manifests:
+
+```bash
+export KUBECONFIG_CONTENT="$(cat ~/.kube/k3s-cluster)"
+cd modules/kubernetes
+
+terraform apply \
+  -var="kubeconfig_content=$KUBECONFIG_CONTENT" \
+  -var="dns_zone=$(terraform output -raw dns_zone)" \
+  -var="ingress_subdomains={go-api=go-api}" \
+  -var="dynamodb_tables={go-api=k3s-cluster-go-api-items}"
+
+cd ../../
+```
+
+This applies the deployment, service, and Ingress resources to the cluster. The Ingress references the `letsencrypt-prod` ClusterIssuer (created by the `cert-manager/` module), so cert-manager automatically provisions Let's Encrypt TLS certificates via Cloudflare DNS-01.
 
 ## Cost estimate
 
