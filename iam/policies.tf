@@ -57,4 +57,21 @@ resource "aws_iam_policy" "node_s3" {
   })
 }
 
+# SSM Parameter Store access for k3s token sharing
+resource "aws_iam_policy" "node_ssm" {
+  name        = "${var.project_name}-node-ssm"
+  description = "Allow EC2 nodes to read k3s cluster token from SSM Parameter Store"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ssm:GetParameter"
+      ]
+      Resource = "arn:aws:ssm:${var.aws_region}:*:parameter/k3s/cluster/token"
+    }]
+  })
+}
+
 data "aws_region" "current" {}

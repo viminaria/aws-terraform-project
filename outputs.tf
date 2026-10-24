@@ -51,3 +51,10 @@ output "private_subnet_id" {
   description = "ID of the private subnet"
   value       = module.networking.private_subnet_id
 }
+
+# Kubernetes ingress hosts — provisioned separately after cluster is running.
+# Uncomment when kubernetes module is re-enabled:
+# output "k8s_ingress_hosts" {
+#   description = "Map of k8s ingress hostnames to app names"
+#   value       = module.kubernetes.ingress_hosts
+# }

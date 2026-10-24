@@ -13,11 +13,11 @@ Internet
 ┌───────────────────────┐
 │  NGINX LB (t4g.micro)  │ Public subnet 10.0.1.0/24
 │  :80 → :443 redirect   │
-│  :443 → HTTPS proxy    │
+│  :443 → HTTPS proxy    │ ← self-signed cert (NGINX → Traefik)
 │  :6443 → TCP stream    │
 │  SSH:22                │
 └──────────┬─────────────┘
-           │
+            │
      ┌─────┴──────┐
      ▼            ▼
 ┌──────────┐ ┌──────────┐
@@ -32,6 +32,16 @@ Internet
                    │
         NAT Gateway (outbound only)
         k3s image pulls, apt updates
+
+Traefik ingress controller (k3s default):
+  - Runs on NodePort :32765 on both nodes
+  - Serves real Let's Encrypt TLS certs (via cert-manager)
+  - Upstream from NGINX:443 proxy pass
+
+cert-manager:
+  - ClusterIssuer "letsencrypt-prod" — ACME + Cloudflare DNS-01
+  - Creates Kubernetes Certificate resources per ingress hostname
+  - Secrets named `<hostname>-tls` in `default` namespace
 ```
 
 ### Traffic flows
@@ -39,9 +49,11 @@ Internet
 | Traffic | Path |
 |---|---|
 | k8s API server | Internet → NGINX:6443 (stream proxy) → CP:6443 |
-| NodePort services | Internet → NGINX:443 → upstream to worker or control plane NodePorts |
-| Go API service | Internet → NGINX:443/api/ → k3s worker CP/control plane:31080 |
+| NodePort services | Internet → NGINX:443 (self-signed TLS) → Traefik :32765 (real TLS from cert-manager) → backend |
+| Go API service | Internet → NGINX:443 → k8s Ingress via Traefik → go-api Service → Pod:8080 |
 | SSH access | `ssh ubuntu@<nginx-public-ip> -i key.pem` then jump via nginx |
+
+**TLS termination:** Two layers — NGINX terminates with a self-signed cert (proxying to Traefik), and Traefik within k3s terminates real Let's Encrypt certificates issued by cert-manager via Cloudflare DNS-01 challenge.
 
 ---
 
@@ -89,9 +101,9 @@ All instances share:
 
 Each instance runs a shell script on first boot:
 
-1. **Control plane** (`control_plane.sh`): Creates 1 GB swap, installs k3s server with traefik disabled and cluster initialization enabled
+1. **Control plane** (`control_plane.sh`): Creates 1 GB swap, installs k3s server with cluster initialization enabled (Traefik ingress controller included)
 2. **Worker** (`worker.sh`): Creates 1 GB swap, installs k3s agent (does not auto-join — manual join via `join-k3s-worker.sh`)
-3. **NGINX** (`nginx.sh`): Installs NGINX, generates self-signed TLS cert, configures stream and HTTP/HTTPS reverse proxy with upstream routing to control plane and worker NodePorts
+3. **NGINX** (`nginx.sh`): Installs NGINX, generates self-signed TLS cert for the proxy layer, configures stream and HTTP/HTTPS reverse proxy with upstream routing to Traefik NodePorts on both nodes
 
 ### Security Groups
 
@@ -138,6 +150,34 @@ Named `k3s-cluster-app-storage`, created dynamically with a random suffix in `ba
 
 ---
 
+## Kubernetes Layer
+
+### cert-manager Module (`cert-manager/`)
+
+Manages Let's Encrypt certificates inside the cluster:
+
+| Resource | Purpose |
+|---|---|
+| `null_resource.install_cert_manager` | Installs cert-manager v1.21.2 controller via upstream manifest |
+| `kubernetes_secret_v1.cloudflare_api_token` | Stores Cloudflare API token for DNS-01 challenge |
+| `kubernetes_manifest.cluster_issuer` | ClusterIssuer "letsencrypt-prod" with Cloudflare DNS-01 solver |
+| `kubernetes_manifest.certificates` | One Certificate resource per ingress subdomain — produces `<hostname>-tls` secrets |
+
+### Kubernetes Ingresses (`modules/kubernetes/`)
+
+The Go API deployment uses a Terraform-managed Ingress resource:
+
+- **IngressClassName**: `traefik` (k3s default)
+- **ClusterIssuer**: `letsencrypt-prod` — cert-manager provisions real TLS certificates via ACME Cloudflare DNS-01
+- **Secret name**: `<hostname>-tls` — matches what cert-manager's Certificate resources create
+- **Path**: `/` prefix routing to go-api Service
+
+### Legacy manifests (`k8s/`)
+
+Template files with `_DNS_ZONE_` placeholder. Superseded by the Terraform module in `modules/kubernetes/`. Kept for reference.
+
+---
+
 ## Module Structure
 
 ```
@@ -172,16 +212,31 @@ aws-terraform-project/
 ├── services/                  ← DynamoDB tables + S3 bucket
 │   ├── main.tf
 │   ├── s3.tf
-│   ├── ecr.tf
 │   ├── variables.tf
 │   └── outputs.tf
 │
-├── dns/                       ← Optional Cloudflare DNS management
+├── dns/                       ← Cloudflare DNS record management
 │   ├── main.tf
-│   └── variables.tf
+│   ├── variables.tf
+│   └── sync-ingress-dns.sh
 │
-└── staging/                   ← Separate environment/workspace for testing changes
-    └── (mirrors project structure)
+├── cert-manager/              ← Let's Encrypt via cert-manager + Cloudflare DNS-01
+│   ├── main.tf                ← Controller install, ClusterIssuer, Certificate resources
+│   ├── variables.tf
+│   └── scripts/
+│       └── install-cert-manager.sh
+│
+├── modules/kubernetes/        ← K8s resources (deployment, service, ingress)
+│   ├── go_api.tf              ← Go API deployment/service/ingress with cert-manager TLS
+│   ├── outputs.tf
+│   ├── variables.tf
+│   └── terraform.tf
+│
+├── k8s/                       ← Legacy template manifests (superseded by modules/kubernetes/)
+│   └── go-api.yaml
+│
+├── staging/                   ← Separate environment/workspace for testing changes
+│   └── (mirrors project structure)
 ```
 
 ---
@@ -195,6 +250,9 @@ Terraform resolves dependencies automatically, but the logical order is:
 3. **`networking/`** — VPC, subnets, IGW, NAT GW, route tables
 4. **`compute/`** — Control plane → Worker → NGINX (dependency-ordered via `depends_on`)
 5. **`services/`** — DynamoDB tables, S3 bucket
+6. **`dns/`** — Cloudflare DNS records for infrastructure subdomains
+7. **`cert-manager/`** — Cert-manager controller, ClusterIssuer, and Certificate resources (depends on compute being up)
+8. **`modules/kubernetes/`** — Go API K8s resources (applied separately with kubeconfig injection)
 
 ---
 
@@ -233,6 +291,7 @@ Save by stopping the NAT Gateway and NGINX instance when not in use. Use `terraf
 - **Automated bootstrapping**: k3s and NGINX install via user_data scripts with `set -euo pipefail`
 - **Documented procedures**: `PREREQUISITES.md` and `ARCHITECTURE.md` for post-deploy steps
 - **Staging environment**: Separate workspace (`staging/`) for testing changes before applying to the main cluster
+- **Kubernetes via Terraform**: Ingress, services, deployments, and cert-manager managed as declarative IaC — not ad-hoc `kubectl`
 
 ### [Security]
 - **Least-privilege IAM**: Instance profile scoped to specific DynamoDB tables and S3 bucket — no wildcard resources
@@ -242,13 +301,14 @@ Save by stopping the NAT Gateway and NGINX instance when not in use. Use `terraf
   - k3s API port 6443 limited to public+private subnets (not 0.0.0.0/0)
   - NodePort range only accessible from known subnets
 - **Encrypted volumes**: All EBS root volumes use gp3 with encryption enabled
-- **Shared responsibility**: EC2 instances are in private subnets, reducing attack surface
+- **Secret management**: Cloudflare API token stored as Kubernetes Secret, referenced by cert-manager ClusterIssuer
 
 ### [Reliability]
 - **Single Availability Zone**: Known limitation — all resources deployed to one AZ. Multi-AZ is out of scope but noted as a future improvement path
 - **EBS gp3 volumes**: Independent from instance lifecycle; encrypted for data protection
 - **DynamoDB PITR + SSE**: Application data tables have point-in-time recovery and server-side encryption enabled
 - **No single points of failure (known)**: Single control plane node, single NAT Gateway, single NGINX — documented as trade-offs
+- **Certificate management**: cert-manager handles Let's Encrypt certificate rotation automatically via DNS-01 challenge
 
 ### [Performance Efficiency]
 - **Graviton2 instances (t4g.*)**: ARM64-based instances providing better price-performance than comparable x86
@@ -274,7 +334,7 @@ Save by stopping the NAT Gateway and NGINX instance when not in use. Use `terraf
 | Decision | Rationale | Future improvement |
 |---|---|---|
 | Single AZ | Simplicity, cost (~$50/mo target) | Add multi-AZ subnets + second control plane node |
-| No ALB/NLB for Ingress | Learning project scope, NodePort sufficient initially | AWS NLB or k8s Ingress controller with cert-manager |
-| Self-signed TLS on NGINX | Learning purposes, no public trust needed | acm-cert via Route53/Cloudflare for valid certificates |
+| NGINX reverse proxy layer | Simple entry point for SSH + TCP stream + HTTP; avoids NLB complexity | AWS NLB or ALB as primary ingress |
+| Dual TLS termination (NGINX self-signed → Traefik Let's Encrypt) | NGINX terminates traffic before it reaches k3s; Traefik provides real certs internally | Move TLS termination to NLB/ALB, remove NGINX proxy layer |
 | Single control plane node | Cost constraint — etcd needs odd number ≥ 3 for HA | Add additional CP nodes to a second AZ |
 | x86_64 AMI (not ARM) | k3s compatibility testing on x86 first | Switch to `arm64` AMI filter matching t4g instances |

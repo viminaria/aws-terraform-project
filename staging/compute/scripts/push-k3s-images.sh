@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Pre-provisioning script: push k3s images to Floci ECR from the host machine.
 # Run this BEFORE terraform apply in staging/ if you want air-gapped nodes.
 # If your EC2 instances have internet access, this is optional (images pull from Docker Hub).

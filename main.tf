@@ -35,22 +35,49 @@ module "compute" {
   ssh_public_key       = var.ssh_public_key
   ssh_key_name         = var.ssh_key_name
   k3s_version          = var.k3s_version
+  dns_zone             = var.dns_zone
+  ingress_subdomains   = var.ingress_subdomains
+  external_ip          = var.external_ip
 
   subnet_ids = {
     public  = module.networking.public_subnet_id
     private = module.networking.private_subnet_id
   }
-  vpc_id               = module.networking.vpc_id
-  public_subnet_cidr   = var.public_subnet_cidr
-  private_subnet_cidr  = var.private_subnet_cidr
-  iam_instance_profile = module.iam.instance_profile_name
+  vpc_id                     = module.networking.vpc_id
+  public_subnet_cidr         = var.public_subnet_cidr
+  private_subnet_cidr        = var.private_subnet_cidr
+  iam_instance_profile       = module.iam.instance_profile_name
+  nginx_iam_instance_profile = module.iam.nginx_instance_profile_name
+}
+module "dns" {
+  source = "./dns"
+
+  dns_zone             = var.dns_zone
+  cp_subdomain         = var.cp_subdomain
+  worker_subdomain     = var.worker_subdomain
+  nginx_subdomain      = var.nginx_subdomain
+  nginx_public_ip      = module.compute.nginx_public_ip
+  cloudflare_api_token = var.cloudflare_api_token
+  ingress_records      = {}
 }
 
-module "dns" {
-  source           = "./dns"
-  dns_zone         = var.dns_zone
-  cp_subdomain     = var.cp_subdomain
-  worker_subdomain = var.worker_subdomain
-  nginx_subdomain  = var.nginx_subdomain
-  nginx_public_ip  = module.compute.nginx_public_ip
+# cert-manager — ACME certificate management with Cloudflare DNS-01 challenge
+locals {
+  kubeconfig_path = "~/.kube/k3s-cluster"
 }
+
+module "cert_manager" {
+  source = "./cert-manager"
+
+  kubeconfig_path      = local.kubeconfig_path
+  dns_zone             = var.dns_zone
+  cloudflare_api_token = var.cloudflare_api_token
+  ingress_subdomains   = var.ingress_subdomains
+
+  depends_on = [module.compute]
+}
+
+# Kubernetes resources (go-api deployment/service/ingress) — uses kubeconfig
+# extracted via SSH, no public API endpoint needed. Provision separately:
+#   export KUBECONFIG_CONTENT="$(cat ~/.kube/k3s-cluster)"
+#   cd modules/kubernetes && terraform apply -var="kubeconfig_content=$KUBECONFIG_CONTENT"

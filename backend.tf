@@ -2,10 +2,44 @@
 resource "aws_s3_bucket" "tf_state" {
   bucket = "k3s-cluster-tf-state-${random_id.bucket_suffix.hex}"
 
+  tags = {
+    Name = "${var.project_name}-tf-state"
+  }
 }
 
 resource "random_id" "bucket_suffix" {
   byte_length = 4
+}
+
+# Block all public access on the state bucket
+resource "aws_s3_bucket_public_access_block" "tf_state" {
+  bucket = aws_s3_bucket.tf_state.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Enable versioning for state recovery
+resource "aws_s3_bucket_versioning" "tf_state" {
+  bucket = aws_s3_bucket.tf_state.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# KMS encryption for state file (AWS-managed key)
+resource "aws_s3_bucket_server_side_encryption_configuration" "tf_state" {
+  bucket = aws_s3_bucket.tf_state.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = "alias/aws/s3"
+    }
+  }
 }
 
 # DynamoDB table for state locking

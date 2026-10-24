@@ -14,6 +14,27 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.0"
     }
+    # kubernetes provider — used by cert-manager module (conditional) and modules/kubernetes/ (separate instance)
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 3.0"
+    }
+  }
+}
+
+# Placeholder SSM parameter for k8s server URL.
+# Real value written by null_resource.extract_k8s_certs after cluster is running.
+resource "aws_ssm_parameter" "k8s_server_url" {
+  name  = "/k3s/server/url"
+  type  = "String"
+  value = "https://TEMP:6443"
+
+  tags = {
+    Name = "${var.project_name}-k8s-server-url"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
   }
 }
 
@@ -27,8 +48,4 @@ provider "aws" {
       ManagedBy   = "terraform"
     }
   }
-}
-
-provider "cloudflare" {
-  api_token = var.cloudflare_api_token
 }

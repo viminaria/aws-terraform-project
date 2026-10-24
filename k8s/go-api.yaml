@@ -16,7 +16,8 @@ spec:
     spec:
       containers:
         - name: go-api
-          image: ghcr.io/viminaria/go-http-api-project:staging-latest
+          image: ghcr.io/viminaria/go-http-api-project:arm64-latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
@@ -34,11 +35,31 @@ metadata:
   labels:
     app: go-api
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: go-api
   ports:
     - protocol: TCP
-      port: 8080
+      port: 80
       targetPort: 8080
-      nodePort: 31080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: go-api-ingress
+  annotations:
+    traefik.middlewares.kubernetes.io/crd: "true"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: go-api._DNS_ZONE_
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: go-api
+                port:
+                  number: 80
+

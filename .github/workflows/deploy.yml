@@ -1,0 +1,80 @@
+name: Deploy K8s resources
+
+on:
+  # Manual trigger with image tag parameter — use this after a new image pushes to GHCR
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag from GHCR (e.g. arm64-latest, v1.2.3-abc123)'
+        required: true
+        default: 'arm64-latest'
+
+  # Auto-deploy on versioned tags (e.g., deploy-v1.2.3)
+  push:
+    tags:
+      - 'deploy-*'
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: eu-central-1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to k3s cluster
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '>=1.5.0'
+
+      - name: Init k8s module
+        working-directory: modules/kubernetes
+        run: terraform init -input=false
+
+      - name: Plan
+        working-directory: modules/kubernetes
+        env:
+          TF_VAR_image_tag: ${{ github.event.inputs.image_tag || '' }}
+        run: |
+          terraform plan \
+            -input=false \
+            -no-color \
+            -var="kubeconfig_content=${{ secrets.KUBECONFIG_CONTENT }}" \
+            -var="dns_zone=${{ secrets.DNS_ZONE }}" \
+            -var="ingress_subdomains=${{ secrets.INGRESS_SUBDOMAINS_JSON }}" \
+            -var="dynamodb_tables=${{ secrets.DYNAMODB_TABLES_JSON }}" \
+            -var="image_tag=${TF_VAR_image_tag}"
+
+      - name: Deploy
+        working-directory: modules/kubernetes
+        env:
+          TF_VAR_image_tag: ${{ github.event.inputs.image_tag || '' }}
+        run: |
+          terraform apply \
+            -input=false \
+            -auto-approve \
+            -var="kubeconfig_content=${{ secrets.KUBECONFIG_CONTENT }}" \
+            -var="dns_zone=${{ secrets.DNS_ZONE }}" \
+            -var="ingress_subdomains=${{ secrets.INGRESS_SUBDOMAINS_JSON }}" \
+            -var="dynamodb_tables=${{ secrets.DYNAMODB_TABLES_JSON }}" \
+            -var="image_tag=${TF_VAR_image_tag}"
+
+      - name: Verify deployment
+        run: |
+          echo "${{ secrets.KUBECONFIG_CONTENT }}" > ~/.kube/config
+          sed -i "s|server:.*|server: https://${{ secrets.CONTROL_PLANE_PRIVATE_IP }}:6443|" ~/.kube/config
+          
+          echo "Checking rollout status..."
+          kubectl rollout status deployment/go-api --timeout=120s
+          echo ""
+          echo "Current pods:"
+          kubectl get pods -l app=go-api -o wide
+          echo ""
+          echo "Ingress:"
+          kubectl get ingress

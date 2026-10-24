@@ -65,6 +65,30 @@ variable "private_subnet_cidr" {
 }
 
 variable "iam_instance_profile" {
-  description = "IAM instance profile name for EC2 nodes"
+  description = "IAM instance profile name for k3s nodes"
   type        = string
+}
+
+variable "nginx_iam_instance_profile" {
+  description = "IAM instance profile name for NGINX"
+  type        = string
+  default     = ""
+}
+
+variable "dns_zone" {
+  description = "DNS zone for Ingress hostnames"
+  type        = string
+  default     = ""
+}
+
+variable "ingress_subdomains" {
+  description = "Map of ingress subdomains to app names for Ingress resources"
+  type        = map(string)
+  default     = {}
+}
+
+variable "external_ip" {
+  description = "Public IPv4 CIDR for SSH access"
+  type        = string
+  default     = "0.0.0.0/0"
 }
