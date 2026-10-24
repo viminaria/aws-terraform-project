@@ -135,3 +135,9 @@ variable "external_ip" {
   type        = string
   default     = "0.0.0.0/0"
 }
+
+variable "kubeconfig_content" {
+  description = "Full kubeconfig YAML content from k3s control plane /etc/rancher/k3s/k3s.yaml"
+  type        = string
+  sensitive   = true
+}

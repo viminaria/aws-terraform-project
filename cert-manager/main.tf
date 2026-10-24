@@ -13,11 +13,6 @@ locals {
   ingress_domains = toset([for k, v in var.ingress_subdomains : "${k}.${var.dns_zone}" if var.dns_zone != ""])
 }
 
-# Kubernetes provider for cert-manager k8s resources
-provider "kubernetes" {
-  config_path = pathexpand(var.kubeconfig_path)
-}
-
 # =============================================================================
 # Install cert-manager CRDs + controller (one-time, idempotent)
 # =============================================================================
@@ -29,7 +24,7 @@ resource "null_resource" "install_cert_manager" {
 
   provisioner "local-exec" {
     command     = "${path.module}/scripts/install-cert-manager.sh"
-    environment = { KUBECONFIG_PATH = pathexpand(var.kubeconfig_path) }
+    environment = { KUBECONFIG_PATH = pathexpand("~/.kube/k3s-cluster") }
   }
 
   depends_on = [kubernetes_secret_v1.cloudflare_api_token]

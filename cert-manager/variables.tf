@@ -1,8 +1,3 @@
-variable "kubeconfig_path" {
-  description = "Path to k8s kubeconfig file (absolute)"
-  type        = string
-}
-
 variable "dns_zone" {
   description = "DNS zone (e.g. viminaria.com) — must be set for certificates"
   type        = string

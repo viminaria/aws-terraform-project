@@ -61,20 +61,31 @@ module "dns" {
   ingress_records      = {}
 }
 
-# cert-manager — ACME certificate management with Cloudflare DNS-01 challenge
+# Kubernetes provider — shared by cert-manager and k8s resources in this root
 locals {
-  kubeconfig_path = "~/.kube/k3s-cluster"
+  kubeconfig_path     = "~/.kube/k3s-cluster"
+  kubeconfig_filename = "${pathexpand("~")}/.kube/k3s-cluster"
 }
 
-module "cert_manager" {
-  source = "./cert-manager"
+resource "local_file" "kubeconfig" {
+  content              = var.kubeconfig_content
+  filename             = local.kubeconfig_filename
+  file_permission      = "0600"
+  directory_permission = "0700"
+}
 
-  kubeconfig_path      = local.kubeconfig_path
+provider "kubernetes" {
+  config_path = local_file.kubeconfig.filename
+}
+
+# cert-manager — ACME certificate management with Cloudflare DNS-01 challenge
+module "cert_manager" {
+  source     = "./cert-manager"
+  depends_on = [module.compute]
+
   dns_zone             = var.dns_zone
   cloudflare_api_token = var.cloudflare_api_token
   ingress_subdomains   = var.ingress_subdomains
-
-  depends_on = [module.compute]
 }
 
 # Kubernetes resources (go-api deployment/service/ingress) — uses kubeconfig
