@@ -82,7 +82,7 @@ resource "aws_instance" "control_plane" {
   }
 
   user_data = templatefile("${path.module}/scripts/control_plane.sh", {
-    ssh_public_key = file("~/.ssh/k3s-cluster.pub")
+    ssh_public_key = var.ssh_public_key
   })
 
   tags = {
@@ -150,7 +150,7 @@ resource "aws_instance" "worker" {
 
   user_data = templatefile("${path.module}/scripts/worker.sh", {
     k3s_control_plane_ip = aws_instance.control_plane.private_ip
-    ssh_public_key       = file("~/.ssh/k3s-cluster.pub")
+    ssh_public_key       = var.ssh_public_key
     k3s_token            = aws_ssm_parameter.k3s_token.value
   })
 
