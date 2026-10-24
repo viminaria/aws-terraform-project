@@ -14,6 +14,7 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.0"
     }
+    # kubernetes provider — used by cert-manager module (conditional) and modules/kubernetes/ (separate instance)
     kubernetes = {
       source  = "hashicorp/kubernetes"
       version = "~> 3.0"
@@ -47,22 +48,4 @@ provider "aws" {
       ManagedBy   = "terraform"
     }
   }
-}
-
-provider "cloudflare" {
-  # Only set api_token when provided — empty string is invalid for the provider
-  count = var.cloudflare_api_token != "" ? 1 : 0
-
-  api_token = var.cloudflare_api_token
-}
-
-locals {
-  kubeconfig_exists = fileexists("~/.kube/k3s-cluster")
-  kubeconfig_path   = "~/.kube/k3s-cluster"
-}
-
-provider "kubernetes" {
-  count = local.kubeconfig_exists ? 1 : 0
-
-  config_path = pathexpand(local.kubeconfig_path)
 }

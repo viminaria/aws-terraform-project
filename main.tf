@@ -62,6 +62,10 @@ module "dns" {
 }
 
 # cert-manager — ACME certificate management with Cloudflare DNS-01 challenge
+locals {
+  kubeconfig_path = "~/.kube/k3s-cluster"
+}
+
 module "cert_manager" {
   source = "./cert-manager"
 
