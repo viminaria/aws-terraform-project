@@ -10,14 +10,11 @@ terraform {
 }
 
 locals {
-  kubeconfig_exists = fileexists(var.kubeconfig_path)
-  ingress_domains   = toset([for k, v in var.ingress_subdomains : "${k}.${var.dns_zone}" if var.dns_zone != ""])
+  ingress_domains = toset([for k, v in var.ingress_subdomains : "${k}.${var.dns_zone}" if var.dns_zone != ""])
 }
 
-# Conditional Kubernetes provider — only when kubeconfig exists (local dev), not CI
+# Kubernetes provider for cert-manager k8s resources
 provider "kubernetes" {
-  count = local.kubeconfig_exists ? 1 : 0
-
   config_path = pathexpand(var.kubeconfig_path)
 }
 

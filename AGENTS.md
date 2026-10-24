@@ -64,43 +64,10 @@ The script:
 
 See PREREQUISITES.md for full details.
 
-## CI/CD
-
-### Image delivery (separate repo)
-The Go API source repo handles build → push to GHCR (`ghcr.io/viminaria/go-http-api-project`). Not in scope here.
-
-### K8s deployment (this repo)
-Two GitHub Actions workflows:
-
-| Workflow | Trigger | What it does |
-|---|---|---|
-| `infra-plan.yml` | Push/PR on infra Terraform files | Plans all AWS infra; auto-applies on main push |
-| `deploy.yml` | Manual dispatch (workflow_dispatch) or `deploy-*` tag | Extracts kubeconfig, runs `terraform apply` on `modules/kubernetes/` with new image tag |
-
-**To deploy a new image:**
-```bash
-gh workflow run deploy.yml --field image_tag=arm64-latest
-# or push a deploy tag: git push origin deploy-arm64-latest
-```
-
-**Required GitHub Secrets** (set via `scripts/update-github-secrets.sh`):
-- `KUBECONFIG_CONTENT` — k3s kubeconfig YAML (extracted from control plane)
-- `DNS_ZONE` — e.g. `viminaria.com`
-- `INGRESS_SUBDOMAINS_JSON` — e.g. `{"go-api": "go-api"}`
-- `DYNAMODB_TABLES_JSON` — e.g. `{"go-api": "k3s-cluster-go-api-items"}`
-- `NGINX_PUBLIC_IP` / `CONTROL_PLANE_PRIVATE_IP` — for local use only
-
-```bash
-# Run helper to extract kubeconfig and set all secrets:
-./scripts/update-github-secrets.sh $(terraform output -raw nginx_public_ip) \
-  $(terraform output -raw control_plane_private_ip)
-```
-
----
-
 ## Not in scope yet
 
 - EKS (self-managed only)
 - Multi-AZ redundancy
 - ALB/NLB as primary ingress (Traefik Ingress + NGINX reverse proxy layer in use, with cert-manager for TLS)
+- CI/CD pipeline
 - Monitoring stack (prometheus/grafana)

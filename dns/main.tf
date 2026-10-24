@@ -1,11 +1,5 @@
 # DNS - creates Cloudflare A records for infrastructure services only
-
-# Conditional Cloudflare provider — only needed when dns_zone is set
-provider "cloudflare" {
-  count = var.cloudflare_api_token != "" ? 1 : 0
-
-  api_token = var.cloudflare_api_token
-}
+# Inherits cloudflare provider from root
 
 locals {
   dns_zone_empty = var.dns_zone == ""
