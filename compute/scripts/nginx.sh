@@ -72,13 +72,16 @@ http {
 }
 NGINXEOF
 
+# Traefik HTTP NodePort on every k3s node (default: 31080)
+TRAEFIK_PORT=31080
+
 # Build traefik upstream with all node IPs
 {
   echo "upstream traefik {"
   IFS=',' read -ra IPS <<< "$NODE_IPS"
   for ip in "$${IPS[@]}"; do
     if [ -n "$ip" ]; then
-      echo "    server $${ip}:32765;"
+      echo "    server $${ip}:${TRAEFIK_PORT};"
     fi
   done
 } > /etc/nginx/sites-available/kubernetes

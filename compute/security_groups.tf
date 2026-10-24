@@ -95,6 +95,15 @@ resource "aws_security_group" "k3s_cp" {
     description = "Kubernetes NodePort range (ingress proxy)"
   }
 
+  # SSH from your public IP
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.external_ip]
+    description = "SSH access from trusted IP"
+  }
+
   # HTTP from internet — for Traefik ACME + Cloudflare Flexible SSL mode
   ingress {
     from_port   = 80

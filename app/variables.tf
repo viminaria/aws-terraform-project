@@ -18,9 +18,16 @@ variable "nginx_public_ip" {
 }
 
 variable "kubeconfig_path" {
-  description = "Path to k8s kubeconfig file for cert-manager"
+  description = "Path to k8s kubeconfig file for cert-manager and kubernetes provider"
   type        = string
   default     = "~/.kube/k3s-cluster"
+}
+
+variable "kubeconfig_content" {
+  description = "Full kubeconfig YAML content from k3s control plane (used when k8s apps are enabled)"
+  type        = string
+  sensitive   = true
+  default     = ""
 }
 
 variable "cp_subdomain" {
@@ -42,7 +49,19 @@ variable "nginx_subdomain" {
 }
 
 variable "ingress_subdomains" {
-  description = "Map of ingress subdomains to app names (e.g. {go-api = \"go-api\"})"
+  description = "Map of ingress subdomain prefix to app name (e.g. {go-api = \"go-api\"})"
   type        = map(string)
   default     = {}
+}
+
+variable "dynamodb_tables" {
+  description = "Map of app name to DynamoDB table name for environment variables"
+  type        = map(string)
+  default     = {}
+}
+
+variable "image_tag" {
+  description = "Container image tag for the Go API (e.g. arm64-latest or a versioned digest)"
+  type        = string
+  default     = "arm64-latest"
 }

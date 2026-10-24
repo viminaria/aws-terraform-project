@@ -75,55 +75,46 @@ resource "kubernetes_service_v1" "go_api" {
     }
     port {
       protocol    = "TCP"
-      port        = 80
+      port        = 8080
       target_port = 8080
     }
     type = "ClusterIP"
   }
 }
 
-# One Ingress per app, keyed by ingress hostname — uses cert-manager TLS secrets
-resource "kubernetes_manifest" "ingress_hosts" {
+# Traefik IngressRoute per app — routes to the Go API service with TLS from cert-manager
+resource "kubernetes_manifest" "ingress_routes" {
   for_each = local.ingress_hosts
 
   manifest = {
-    apiVersion = "networking.k8s.io/v1"
-    kind       = "Ingress"
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
     metadata = {
-      name = "${each.value}-ingress"
-      annotations = {
-        "traefik.middlewares.kubernetes.io/crd" = "true"
-        "cert-manager.io/cluster-issuer"        = "letsencrypt-prod"
-      }
+      name      = "${each.value}-ingressroute"
+      namespace = "default"
     }
     spec = {
-      ingressClassName = "traefik"
-      tls = [
+      entryPoints = ["websecure"]
+      routes = [
         {
-          hosts      = [each.key]
-          secretName = "${each.key}-tls"
+          kind  = "Rule"
+          match = "Host(`${each.key}`)"
+          services = [
+            {
+              name   = each.value
+              port   = 8080
+              scheme = "http"
+            }
+          ]
         }
       ]
-      rule = {
-        http = {
-          path = {
-            path     = "/"
-            pathType = "Prefix"
-            backend = {
-              service = {
-                name = each.value
-                port = {
-                  number = 80
-                }
-              }
-            }
-          }
-        }
+      tls = {
+        secretName = "${each.key}-tls"
       }
     }
   }
 
   lifecycle {
-    ignore_changes = [manifest[0].spec[0].rule[0].http[0].path[0].backend]
+    ignore_changes = [manifest[0].status]
   }
 }
