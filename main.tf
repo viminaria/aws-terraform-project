@@ -52,13 +52,12 @@ module "compute" {
 module "dns" {
   source = "./dns"
 
-  dns_zone             = var.dns_zone
-  cp_subdomain         = var.cp_subdomain
-  worker_subdomain     = var.worker_subdomain
-  nginx_subdomain      = var.nginx_subdomain
-  nginx_public_ip      = module.compute.nginx_public_ip
-  cloudflare_api_token = var.cloudflare_api_token
-  ingress_records      = {}
+  dns_zone         = var.dns_zone
+  cp_subdomain     = var.cp_subdomain
+  worker_subdomain = var.worker_subdomain
+  nginx_subdomain  = var.nginx_subdomain
+  nginx_public_ip  = module.compute.nginx_public_ip
+  ingress_records  = {}
 }
 
 # Kubernetes provider — shared by cert-manager and k8s resources in this root

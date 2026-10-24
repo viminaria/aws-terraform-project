@@ -30,8 +30,4 @@ variable "nginx_public_ip" {
   type        = string
 }
 
-variable "cloudflare_api_token" {
-  description = "Cloudflare API Token for DNS record management"
-  type        = string
-  default     = ""
-}
+

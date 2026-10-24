@@ -1,5 +1,6 @@
 # DNS - creates Cloudflare A records for infrastructure services only
-# Inherits cloudflare provider from root
+# All resources are conditional on dns_zone being set. When dns_zone is empty,
+# no cloudflare provider is needed and no resources are created.
 
 locals {
   dns_zone_empty = var.dns_zone == ""
@@ -9,14 +10,6 @@ data "cloudflare_zones" "this" {
   count = local.dns_zone_empty ? 0 : 1
   filter {
     name = var.dns_zone
-  }
-}
-
-terraform {
-  required_providers {
-    cloudflare = {
-      source = "cloudflare/cloudflare"
-    }
   }
 }
 
