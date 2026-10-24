@@ -2,9 +2,19 @@
 set -euo pipefail
 
 # Install NGINX with stream module support
-apt-get update && apt-get install -y nginx
+apt-get update && apt-get install -y jq
 
-# Write complete nginx configuration
+# Get private IPs of all instances tagged as k3s nodes (control plane + workers)
+NODE_IPS=$(aws ec2 describe-instances \
+  --filters "Name=tag:Project,Values=k3s-cluster" "Name=instance-state-name,Values=running" \
+  --query 'Reservations[].Instances[].PrivateIpAddress' --output text 2>/dev/null | tr '\t' ',' || true)
+
+# Fallback if AWS CLI not available or no instances found yet at boot time
+if [ -z "$NODE_IPS" ]; then
+  NODE_IPS="${fallback_cp_ip}"
+fi
+
+# Write base nginx config (static parts)
 cat > /etc/nginx/nginx.conf <<'NGINXEOF'
 user www-data;
 worker_processes auto;
@@ -14,19 +24,32 @@ include /etc/nginx/modules-enabled/*.conf;
 events {
     worker_connections 768;
 }
+NGINXEOF
 
-stream {
-    upstream k3s_api {
-        server ${k3s_control_plane_ip}:6443;
-    }
+# Build upstream block with discovered IPs and append to nginx.conf
+{
+  echo ""
+  echo "stream {"
+  echo "    upstream k3s_api {"
+  IFS=',' read -ra IPS <<< "$NODE_IPS"
+  for ip in "$${IPS[@]}"; do
+    if [ -n "$ip" ]; then
+      echo "        server $${ip}:6443;"
+    fi
+  done
+  echo "    }"
+  echo ""
+  echo "    server {"
+  echo "        listen 6443;"
+  echo "        proxy_pass k3s_api;"
+  echo "        proxy_timeout 1m;"
+  echo "        proxy_connect_timeout 10s;"
+  echo "    }"
+  echo "}"
+} >> /etc/nginx/nginx.conf
 
-    server {
-        listen 6443;
-        proxy_pass k3s_api;
-        proxy_timeout 1m;
-        proxy_connect_timeout 10s;
-    }
-}
+# Append http block (static)
+cat >> /etc/nginx/nginx.conf <<'NGINXEOF'
 
 http {
     sendfile on;
@@ -49,11 +72,19 @@ http {
 }
 NGINXEOF
 
-# Write the http site configuration for NodePort services
-cat > /etc/nginx/sites-available/kubernetes <<'NGINXEOF'
-upstream traefik {
-    server ${k3s_control_plane_ip}:32765;
-    server ${k3s_worker_ip}:32765;
+# Build traefik upstream with all node IPs
+{
+  echo "upstream traefik {"
+  IFS=',' read -ra IPS <<< "$NODE_IPS"
+  for ip in "$${IPS[@]}"; do
+    if [ -n "$ip" ]; then
+      echo "    server $${ip}:32765;"
+    fi
+  done
+} > /etc/nginx/sites-available/kubernetes
+
+# Append remaining static config (triple-quoted heredoc so $ signs aren't expanded)
+cat >> /etc/nginx/sites-available/kubernetes <<'NGINXEOF'
 }
 
 server {

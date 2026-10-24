@@ -39,11 +39,10 @@ resource "aws_instance" "nginx" {
   }
 
   user_data = templatefile("${path.module}/scripts/nginx.sh", {
-    k3s_control_plane_ip = aws_instance.control_plane.private_ip
-    k3s_worker_ip        = aws_instance.worker.private_ip
+    fallback_cp_ip = aws_instance.control_plane.private_ip
   })
 
-  depends_on = [aws_instance.control_plane, aws_instance.worker]
+  depends_on = [aws_instance.control_plane]
 
   tags = {
     Name = "${var.project_name}-nginx"
@@ -154,7 +153,7 @@ resource "aws_instance" "worker" {
     k3s_token            = aws_ssm_parameter.k3s_token.value
   })
 
-  depends_on = [aws_ssm_parameter.k3s_token]
+  depends_on = [aws_ssm_parameter.k3s_token, null_resource.extract_k3s_token]
 
   tags = {
     Name = "${var.project_name}-worker"
