@@ -10,7 +10,7 @@ NODE_IPS=$(aws ec2 describe-instances \
   --query 'Reservations[].Instances[].PrivateIpAddress' --output text 2>/dev/null | tr '\t' ',' || true)
 
 # Fallback if AWS CLI not available or no instances found yet at boot time
-if [ -z "$NODE_IPS" ]; then
+if [ -z "$${NODE_IPS}" ]; then
   NODE_IPS="${fallback_cp_ip}"
 fi
 
@@ -31,7 +31,7 @@ NGINXEOF
   echo ""
   echo "stream {"
   echo "    upstream k3s_api {"
-  IFS=',' read -ra IPS <<< "$NODE_IPS"
+  IFS=',' read -ra IPS <<< "$${NODE_IPS}"
   for ip in "$${IPS[@]}"; do
     if [ -n "$ip" ]; then
       echo "        server $${ip}:6443;"
@@ -78,10 +78,10 @@ TRAEFIK_PORT=31080
 # Build traefik upstream with all node IPs
 {
   echo "upstream traefik {"
-  IFS=',' read -ra IPS <<< "$NODE_IPS"
+  IFS=',' read -ra IPS <<< "$${NODE_IPS}"
   for ip in "$${IPS[@]}"; do
     if [ -n "$ip" ]; then
-      echo "    server $${ip}:${TRAEFIK_PORT};"
+      echo "    server $${ip}:31080;"
     fi
   done
 } > /etc/nginx/sites-available/kubernetes

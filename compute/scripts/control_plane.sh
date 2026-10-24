@@ -10,6 +10,4 @@ users:
     sudo: ['ALL=(ALL) NOPASSWD:ALL']
 
 runcmd:
-  # Wipe previous k3s state so the new token takes effect
-  - rm -rf /var/lib/rancher/k3s/server
   - curl -sfL https://get.k3s.io | sh -s - server --token "${k3s_token}" --write-kubeconfig-mode 644 --cluster-init || true

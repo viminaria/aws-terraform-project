@@ -67,6 +67,15 @@ resource "aws_eip" "nginx" {
   }
 }
 
+# Elastic IP for control plane — allows direct SSH access for cluster management
+resource "aws_eip" "control_plane" {
+  domain = "vpc"
+
+  tags = {
+    Name = "${var.project_name}-cp-eip"
+  }
+}
+
 # Control plane instance in private subnet
 resource "aws_instance" "control_plane" {
   ami                    = data.aws_ami.ubuntu.id
@@ -76,6 +85,8 @@ resource "aws_instance" "control_plane" {
   iam_instance_profile   = var.iam_instance_profile
   key_name               = aws_key_pair.k3s.key_name
   monitoring             = true
+
+  associate_public_ip_address = true
 
   metadata_options {
     http_tokens = "required"
