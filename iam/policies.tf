@@ -57,19 +57,20 @@ resource "aws_iam_policy" "node_s3" {
   })
 }
 
-# SSM Parameter Store access for k3s token sharing
-resource "aws_iam_policy" "node_ssm" {
-  name        = "${var.project_name}-node-ssm"
-  description = "Allow EC2 nodes to read k3s cluster token from SSM Parameter Store"
+# EC2 read policy — used by NGINX to discover k3s node IPs and by nodes for general operations
+resource "aws_iam_policy" "ec2_read" {
+  name        = "${var.project_name}-ec2-read"
+  description = "Allow reading EC2 instance metadata for k3s cluster management"
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect = "Allow"
       Action = [
-        "ssm:GetParameter"
+        "ec2:DescribeInstances",
+        "ec2:DescribeTags"
       ]
-      Resource = "arn:aws:ssm:${var.aws_region}:*:parameter/k3s/cluster/token"
+      Resource = "*"
     }]
   })
 }

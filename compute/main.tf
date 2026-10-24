@@ -18,6 +18,13 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+# Shared cluster token — generated once at plan time, used by both control plane and workers
+resource "random_password" "k3s_token" {
+  length           = 32
+  special          = false
+  override_special = "abcdefghijklmnopqrstuvwxyz0123456789"
+}
+
 # NGINX load balancer in public subnet — depends on control plane for IP injection
 resource "aws_instance" "nginx" {
   ami                    = data.aws_ami.ubuntu.id
@@ -82,36 +89,13 @@ resource "aws_instance" "control_plane" {
 
   user_data = templatefile("${path.module}/scripts/control_plane.sh", {
     ssh_public_key = var.ssh_public_key
+    k3s_token      = random_password.k3s_token.result
   })
 
   tags = {
     Name = "${var.project_name}-control-plane"
     Role = "k3s-server"
   }
-}
-
-# SSM parameter for k3s cluster token (shared between nodes)
-resource "aws_ssm_parameter" "k3s_token" {
-  name  = "/k3s/cluster/token"
-  type  = "String"
-  value = "TEMP" # Overwritten by null_resource.extract_k3s_token after k3s starts
-
-  tags = {
-    Name = "${var.project_name}-k3s-token"
-  }
-}
-
-# Extract k3s token and store in SSM after all instances are running
-resource "null_resource" "extract_k3s_token" {
-  triggers = {
-    nginx_public_ip = aws_eip.nginx.public_ip
-  }
-
-  provisioner "local-exec" {
-    command = "./${path.module}/scripts/extract_k3s_token.sh ${aws_eip.nginx.public_ip} ${aws_instance.control_plane.private_ip}"
-  }
-
-  depends_on = [aws_instance.control_plane, aws_instance.nginx]
 }
 
 # Extract k8s API server URL and save kubeconfig after control plane is running
@@ -124,10 +108,10 @@ resource "null_resource" "extract_k8s_certs" {
     command = "./${path.module}/scripts/extract_k8s_certs.sh ${aws_eip.nginx.public_ip} ${aws_instance.control_plane.private_ip}"
   }
 
-  depends_on = [aws_instance.control_plane, aws_instance.nginx]
+  depends_on = [aws_instance.nginx]
 }
 
-# Worker instance in private subnet
+# Worker instance in private subnet — auto-joins using the same plan-time token
 resource "aws_instance" "worker" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = var.instance_type_worker
@@ -150,15 +134,11 @@ resource "aws_instance" "worker" {
   user_data = templatefile("${path.module}/scripts/worker.sh", {
     k3s_control_plane_ip = aws_instance.control_plane.private_ip
     ssh_public_key       = var.ssh_public_key
-    k3s_token            = aws_ssm_parameter.k3s_token.value
+    k3s_token            = random_password.k3s_token.result
   })
-
-  depends_on = [aws_ssm_parameter.k3s_token, null_resource.extract_k3s_token]
 
   tags = {
     Name = "${var.project_name}-worker"
     Role = "k3s-agent"
   }
 }
-
-

@@ -29,18 +29,13 @@ resource "aws_iam_role_policy_attachment" "s3" {
   role       = aws_iam_role.node.name
 }
 
-resource "aws_iam_role_policy_attachment" "ssm" {
-  policy_arn = aws_iam_policy.node_ssm.arn
-  role       = aws_iam_role.node.name
-}
-
 # Instance profile to associate with k3s nodes (control plane + worker)
 resource "aws_iam_instance_profile" "node" {
   name = "${var.project_name}-node-profile"
   role = aws_iam_role.node.name
 }
 
-# Minimal IAM role for NGINX — SSM only, no DynamoDB/S3 access
+# Minimal IAM role for NGINX — EC2 read for instance discovery
 resource "aws_iam_role" "nginx" {
   name = "${var.project_name}-nginx-role"
 
@@ -60,8 +55,8 @@ resource "aws_iam_role" "nginx" {
   }
 }
 
-resource "aws_iam_role_policy_attachment" "nginx_ssm" {
-  policy_arn = aws_iam_policy.node_ssm.arn
+resource "aws_iam_role_policy_attachment" "nginx_ec2" {
+  policy_arn = aws_iam_policy.ec2_read.arn
   role       = aws_iam_role.nginx.name
 }
 

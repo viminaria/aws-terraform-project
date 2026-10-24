@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Extract k3s node token from control plane and store in SSM (if not already set)
+# Extract k3s node token from control plane and store in SSM
+# Runs AFTER control_plane is up but BEFORE worker starts
 
 NGINX_IP="$1"
 CP_PRIVATE_IP="$2"

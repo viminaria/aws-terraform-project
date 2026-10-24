@@ -1,6 +1,7 @@
 #cloud-config
 bootcmd:
-  - fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  - test -f /swapfile || (fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile)
+  - grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
 users:
   - name: ubuntu
@@ -9,4 +10,6 @@ users:
     sudo: ['ALL=(ALL) NOPASSWD:ALL']
 
 runcmd:
-  - curl -sfL https://get.k3s.io | sh -s - server --write-kubeconfig-mode 644 --cluster-init || true
+  # Wipe previous k3s state so the new token takes effect
+  - rm -rf /var/lib/rancher/k3s/server
+  - curl -sfL https://get.k3s.io | sh -s - server --token "${k3s_token}" --write-kubeconfig-mode 644 --cluster-init || true
