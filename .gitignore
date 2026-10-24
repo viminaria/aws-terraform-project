@@ -3,6 +3,7 @@
 *.tfvars
 .terraform/
 .terraform.lock.hcl
+tfplan
 node-token.txt
 
 # AWS credentials (if stored locally)

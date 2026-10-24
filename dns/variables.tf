@@ -19,7 +19,19 @@ variable "nginx_subdomain" {
   default     = ""
 }
 
+variable "ingress_records" {
+  description = "Map of ingress subdomain to app name (e.g., {\"go-api.viminaria.com\" = \"go-api\"})"
+  type        = map(string)
+  default     = {}
+}
+
 variable "nginx_public_ip" {
   description = "Public IP of the NGINX load balancer"
   type        = string
+}
+
+variable "cloudflare_api_token" {
+  description = "Cloudflare API Token for DNS record management"
+  type        = string
+  default     = ""
 }

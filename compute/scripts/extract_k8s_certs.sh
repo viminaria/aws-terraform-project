@@ -50,9 +50,10 @@ ssh -A -i "$SSH_KEY" ubuntu@"$NGINX_IP" \
   "cat /tmp/tmp_key.pem | ssh -o StrictHostKeyChecking=no -i /tmp/tmp_key.pem ubuntu@$CP_IP 'sudo cat /etc/rancher/k3s/k3s.yaml'" \
   | sed "s/127.0.0.1/${NGINX_IP}/g" > "$KUBECONFIG_DIR/k3s-cluster.tmp"
 
-# Add insecure-skip-tls-verify (cert CN is 127.0.0.1, not the proxy IP)
-# Keep CA cert data intact — Terraform provider uses it for TLS context
-sed -i "/^    server:/a\\  insecure-skip-tls-verify: true" "$KUBECONFIG_DIR/k3s-cluster.tmp"
+# Strip CA cert and add insecure-skip-tls-verify since the self-signed cert CN
+# is 127.0.0.1, not the NGINX proxy IP — Terraform provider rejects both together
+sed -i "/^    certificate-authority-data:/d" "$KUBECONFIG_DIR/k3s-cluster.tmp"
+sed -i "/^    server:/a\\    insecure-skip-tls-verify: true" "$KUBECONFIG_DIR/k3s-cluster.tmp"
 mv "$KUBECONFIG_DIR/k3s-cluster.tmp" "$KUBECONFIG_DIR/k3s-cluster"
 chmod 600 "$KUBECONFIG_DIR/k3s-cluster"
 echo "kubeconfig saved to $KUBECONFIG_DIR/k3s-cluster"

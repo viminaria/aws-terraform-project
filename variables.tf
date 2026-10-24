@@ -123,3 +123,15 @@ variable "cloudflare_zone_id" {
   type        = string
   default     = ""
 }
+
+variable "ingress_subdomains" {
+  description = "Map of ingress subdomains to app names (e.g., {\"go-api\" = \"go-api\"}) for automatic DNS + Ingress creation"
+  type        = map(string)
+  default     = {}
+}
+
+variable "external_ip" {
+  description = "Your public IPv4 CIDR for SSH access restriction"
+  type        = string
+  default     = "0.0.0.0/0"
+}

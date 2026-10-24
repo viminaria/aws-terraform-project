@@ -14,6 +14,26 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.0"
     }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 3.0"
+    }
+  }
+}
+
+# Placeholder SSM parameter for k8s server URL.
+# Real value written by null_resource.extract_k8s_certs after cluster is running.
+resource "aws_ssm_parameter" "k8s_server_url" {
+  name  = "/k3s/server/url"
+  type  = "String"
+  value = "https://TEMP:6443"
+
+  tags = {
+    Name = "${var.project_name}-k8s-server-url"
+  }
+
+  lifecycle {
+    ignore_changes = [value]
   }
 }
 
@@ -31,4 +51,12 @@ provider "aws" {
 
 provider "cloudflare" {
   api_token = var.cloudflare_api_token
+}
+
+locals {
+  kubeconfig_path = "~/.kube/k3s-cluster"
+}
+
+provider "kubernetes" {
+  config_path = pathexpand(local.kubeconfig_path)
 }

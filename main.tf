@@ -61,6 +61,18 @@ module "dns" {
   ingress_records      = {}
 }
 
+# cert-manager — ACME certificate management with Cloudflare DNS-01 challenge
+module "cert_manager" {
+  source = "./cert-manager"
+
+  kubeconfig_path      = local.kubeconfig_path
+  dns_zone             = var.dns_zone
+  cloudflare_api_token = var.cloudflare_api_token
+  ingress_subdomains   = var.ingress_subdomains
+
+  depends_on = [module.compute]
+}
+
 # Kubernetes resources (go-api deployment/service/ingress) — uses kubeconfig
 # extracted via SSH, no public API endpoint needed. Provision separately:
 #   export KUBECONFIG_CONTENT="$(cat ~/.kube/k3s-cluster)"

@@ -22,22 +22,22 @@ resource "aws_security_group" "nginx" {
     description = "HTTPS from internet"
   }
 
-  # k3s API server port — forward to control plane
+  # k3s API server port — forward to control plane (from internet and cluster)
   ingress {
     from_port   = 6443
     to_port     = 6443
     protocol    = "tcp"
-    cidr_blocks = [var.private_subnet_cidr]
-    description = "k3s API server (forwarded by nginx, from k8s pods)"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "k3s API server (forwarded by nginx, from internet and pods)"
   }
 
-  # SSH
+  # SSH from your public IP
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "SSH access"
+    cidr_blocks = [var.external_ip]
+    description = "SSH access from trusted IP"
   }
 
   egress {
@@ -84,6 +84,50 @@ resource "aws_security_group" "k3s_cp" {
     protocol    = "tcp"
     cidr_blocks = [var.private_subnet_cidr]
     description = "kubelet API (same subnet)"
+  }
+
+  # NodePort range — from nginx LB and cluster (needed for Traefik ingress)
+  ingress {
+    from_port   = 30000
+    to_port     = 32767
+    protocol    = "tcp"
+    cidr_blocks = [var.public_subnet_cidr, var.private_subnet_cidr]
+    description = "Kubernetes NodePort range (ingress proxy)"
+  }
+
+  # HTTP from internet — for Traefik ACME + Cloudflare Flexible SSL mode
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTP for Traefik web entry point (ACME + Cloudflare proxy)"
+  }
+
+  # Traefik entries from NGINX — HTTPS termination at CF, forwarded to Traefik
+  ingress {
+    from_port       = 8000
+    to_port         = 8443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.nginx.id]
+    description     = "Traefik web+websecure from NGINX proxy"
+  }
+
+  # k3s worker security group — allow all TCP/UDP for flannel VXLAN and inter-node pod routing
+  ingress {
+    from_port       = 0
+    to_port         = 65535
+    protocol        = "tcp"
+    security_groups = [aws_security_group.k3s_worker.id]
+    description     = "Allow all TCP from worker (flannel VXLAN, pod routing)"
+  }
+
+  ingress {
+    from_port       = 0
+    to_port         = 65535
+    protocol        = "udp"
+    security_groups = [aws_security_group.k3s_worker.id]
+    description     = "Allow all UDP from worker (flannel VXLAN)"
   }
 
   # etcd
@@ -139,6 +183,32 @@ resource "aws_security_group" "k3s_worker" {
     protocol    = "tcp"
     cidr_blocks = [var.public_subnet_cidr, var.private_subnet_cidr]
     description = "Kubernetes NodePort range"
+  }
+
+  # HTTP from internet — for Traefik web entry point (Cloudflare proxy)
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "HTTP for Traefik web entry point (Cloudflare proxy)"
+  }
+
+  # All TCP/UDP from private subnet — flannel VXLAN and inter-node pod routing
+  ingress {
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    cidr_blocks = [var.private_subnet_cidr]
+    description = "Allow all TCP from private subnet (flannel VXLAN, pod routing)"
+  }
+
+  ingress {
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "udp"
+    cidr_blocks = [var.private_subnet_cidr]
+    description = "Allow all UDP from private subnet (flannel VXLAN)"
   }
 
   egress {

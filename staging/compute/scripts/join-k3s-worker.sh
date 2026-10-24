@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # join-k3s-worker.sh — Helper script to join k3s worker node after terraform apply
 # Usage: ./join-k3s-worker.sh <nginx-public-ip> [<ssh-key-path>] [<cp-private-ip>]
 
