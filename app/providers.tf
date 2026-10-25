@@ -22,3 +22,10 @@ locals {
 provider "cloudflare" {
   api_token = local.cf_api_token
 }
+
+# Kubernetes provider — connects to k3s cluster for resource management
+# Uses kubeconfig_path variable pointing to extracted k3s config file
+provider "kubernetes" {
+  config_path = pathexpand(var.kubeconfig_path)
+  insecure    = true # k3s uses self-signed certs for internal IPs
+}

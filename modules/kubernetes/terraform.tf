@@ -7,9 +7,10 @@ terraform {
   }
 }
 
-variable "kubeconfig_content" {
-  description = "Full kubeconfig YAML content from k3s control plane /etc/rancher/k3s/k3s.yaml"
+variable "kubeconfig_path" {
+  description = "Path to kubeconfig file from k3s cluster"
   type        = string
+  default     = "~/.kube/k3s-cluster"
 }
 
 variable "dns_zone" {
@@ -30,17 +31,8 @@ variable "dynamodb_tables" {
   default     = {}
 }
 
-locals {
-  kubeconfig_path = "${pathexpand("~")}/.kube/k3s-cluster"
-}
-
-resource "local_file" "kubeconfig" {
-  content              = var.kubeconfig_content
-  filename             = local.kubeconfig_path
-  file_permission      = "0600"
-  directory_permission = "0700"
-}
-
-provider "kubernetes" {
-  config_path = local_file.kubeconfig.filename
+variable "image_tag" {
+  description = "Container image tag for the Go API (e.g., arm64-latest or a versioned digest)"
+  type        = string
+  default     = "arm64-latest"
 }

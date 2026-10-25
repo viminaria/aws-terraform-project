@@ -1,7 +1,3 @@
-locals {
-  ingress_hosts = { for k, v in var.ingress_subdomains : "${k}.${var.dns_zone}" => v if var.dns_zone != "" }
-}
-
 resource "kubernetes_deployment_v1" "go_api" {
   metadata {
     name = "go-api"
@@ -82,39 +78,25 @@ resource "kubernetes_service_v1" "go_api" {
   }
 }
 
-# Traefik IngressRoute per app — routes to the Go API service with TLS from cert-manager
-resource "kubernetes_manifest" "ingress_routes" {
-  for_each = local.ingress_hosts
-
-  manifest = {
-    apiVersion = "traefik.io/v1alpha1"
-    kind       = "IngressRoute"
-    metadata = {
-      name      = "${each.value}-ingressroute"
-      namespace = "default"
-    }
-    spec = {
-      entryPoints = ["websecure"]
-      routes = [
-        {
-          kind  = "Rule"
-          match = "Host(`${each.key}`)"
-          services = [
-            {
-              name   = each.value
-              port   = 8080
-              scheme = "http"
-            }
-          ]
-        }
-      ]
-      tls = {
-        secretName = "${each.key}-tls"
-      }
+# NodePort service for direct access when DNS/certs not configured
+resource "kubernetes_service_v1" "go_api_nodeport" {
+  metadata {
+    name = "go-api-nodeport"
+    labels = {
+      app = "go-api"
     }
   }
 
-  lifecycle {
-    ignore_changes = [manifest[0].status]
+  spec {
+    selector = {
+      app = kubernetes_deployment_v1.go_api.spec[0].template[0].metadata[0].labels["app"]
+    }
+    port {
+      protocol    = "TCP"
+      port        = 8080
+      target_port = 8080
+      node_port   = 30080
+    }
+    type = "NodePort"
   }
 }

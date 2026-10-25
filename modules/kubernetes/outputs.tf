@@ -1,8 +1,3 @@
-output "ingress_hosts" {
-  description = "Map of ingress hostname -> app name (e.g., {\"go-api.example.com\" = \"go-api\"})"
-  value       = local.ingress_hosts
-}
-
 output "apply_instructions" {
   description = "How to apply this module without exposing the k8s API publicly"
   value       = <<EOT

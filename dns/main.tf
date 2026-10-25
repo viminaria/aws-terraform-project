@@ -65,9 +65,10 @@ resource "cloudflare_record" "ingress" {
   name     = each.key
   type     = "A"
 
-  content = var.nginx_public_ip
-  proxied = false
-  ttl     = 300
+  content         = var.nginx_public_ip
+  proxied         = true
+  ttl             = 1 # Cloudflare requires ttl=1 for proxied records (auto-managed)
+  allow_overwrite = true
 }
 
 output "dns_records" {

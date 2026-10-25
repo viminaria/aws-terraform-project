@@ -23,13 +23,6 @@ variable "kubeconfig_path" {
   default     = "~/.kube/k3s-cluster"
 }
 
-variable "kubeconfig_content" {
-  description = "Full kubeconfig YAML content from k3s control plane (used when k8s apps are enabled)"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
 variable "cp_subdomain" {
   description = "Subdomain prefix for control plane DNS record"
   type        = string
@@ -51,7 +44,7 @@ variable "nginx_subdomain" {
 variable "ingress_subdomains" {
   description = "Map of ingress subdomain prefix to app name (e.g. {go-api = \"go-api\"})"
   type        = map(string)
-  default     = {}
+  default     = { go-api = "go-api" }
 }
 
 variable "dynamodb_tables" {
