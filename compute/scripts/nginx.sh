@@ -72,16 +72,26 @@ http {
 }
 NGINXEOF
 
-# Traefik HTTP NodePort on every k3s node (default: 31080)
-TRAEFIK_PORT=31080
+# Go API NodePort (default: 30080) — used for go-api.viminaria.com
+GO_API_PORT=30080
 
-# Build traefik upstream with all node IPs
+# Build traefik upstream with all node IPs (for k8s admin endpoints, etc.)
 {
   echo "upstream traefik {"
   IFS=',' read -ra IPS <<< "$${NODE_IPS}"
   for ip in "$${IPS[@]}"; do
     if [ -n "$ip" ]; then
       echo "    server $${ip}:31080;"
+    fi
+  done
+
+  # Go API upstream — direct to NodePort
+  echo ""
+  echo "upstream go_api {"
+  IFS=',' read -ra IPS <<< "$${NODE_IPS}"
+  for ip in "$${IPS[@]}"; do
+    if [ -n "$ip" ]; then
+      echo "    server $${ip}:30080;"
     fi
   done
 } > /etc/nginx/sites-available/kubernetes
@@ -92,8 +102,33 @@ cat >> /etc/nginx/sites-available/kubernetes <<'NGINXEOF'
 
 server {
     listen 80;
+    server_name go-api.viminaria.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 80;
     server_name _;
     return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name go-api.viminaria.com;
+
+    ssl_certificate     /etc/nginx/ssl/server.crt;
+    ssl_certificate_key /etc/nginx/ssl/server.key;
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    location / {
+        proxy_pass http://go_api;
+        proxy_read_timeout 30s;
+        proxy_connect_timeout 10s;
+    }
 }
 
 server {
